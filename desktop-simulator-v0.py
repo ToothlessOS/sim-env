@@ -21,7 +21,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import numpy as np
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import AssetBaseCfg
@@ -34,7 +33,7 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.math import subtract_frame_transforms
 from omni.isaac.lab.sensors import CameraCfg
-from omni.isaac.lab.actuators import IdealPDActuator, IdealPDActuatorCfg
+from omni.isaac.lab.actuators import IdealPDActuatorCfg, DelayedPDActuatorCfg
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -112,8 +111,8 @@ class TableTopSceneConfig(InteractiveSceneCfg):
                 joint_names_expr=["panda_finger_joint.*"],
                 effort_limit=200.0,
                 velocity_limit=0.2,
-                stiffness=2e3,
-                damping=1e2,
+                stiffness=2e3, #2e3
+                damping=1e2, #1e2
             ),
         },
         soft_joint_pos_limit_factor=1.0,
@@ -213,6 +212,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             ik_commands[:] = ee_goals[current_goal_idx][:-1]
             gripper_commands = ee_goals[current_goal_idx][-1]
             joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone()
+            # gripper_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone() #Bug: should refer to gripper fingers
             # reset controller
             diff_ik_controller.reset()
             diff_ik_controller.set_command(ik_commands)
@@ -236,16 +236,19 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # https://isaac-sim.github.io/IsaacLab/source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.IdealPDActuator.compute
             # A slider joint: param: a scalar
             gripper_target = ArticulationActions(
-                joint_positions = torch.tensor([-1, -1], device=sim.device),
+                joint_positions = torch.tensor([0.01, 0.01], device=sim.device),
                 joint_velocities = torch.tensor([0, 0], device=sim.device),
                 joint_efforts = torch.tensor([0, 0], device=sim.device)
             ) # At this stage: change the target here.
             gripper_pos = robot.data.joint_pos[0, -2:]
+            print("POS: " + str(gripper_pos))
             gripper_vel = robot.data.joint_vel[0, -2:]
+            print("VEL: " + str(gripper_vel))
             gripper_pos_des = robot.actuators["panda_hand"].compute(gripper_target, gripper_pos, gripper_vel)
 
         # apply actions
         robot.set_joint_position_target(joint_pos_des, joint_ids=robot_entity_cfg.joint_ids)
+        # robot.set_joint_position_target(gripper_pos_des, joint_ids=robot_entity_cfg.joint_ids) #Bug: should refer to gripper fingers
         scene.write_data_to_sim()
         # perform step
         sim.step()
