@@ -252,6 +252,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 gripper_vel = robot.data.joint_vel[0, -2:]
                 print("VEL: " + str(gripper_vel))
                 gripper_pos_des = robot.actuators["panda_hand"].compute(gripper_target, gripper_pos, gripper_vel)
+                print(gripper_pos_des)
         elif FLAG == 0: # With real-time interactions
             pass
 
